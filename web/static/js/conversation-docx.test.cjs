@@ -37,6 +37,79 @@ test('完整版 Markdown 会打进 docx 且 zip 头合法', () => {
     assert.match(xml, /&quot;port&quot;:80|&quot;port&quot;: 80|"port":80/);
 });
 
+test('ZIP 中央目录文件名长度正确，可被标准 zip 解析', () => {
+    const bytes = docx.buildDocxBytesFromMarkdown('# 标题\n\n正文');
+    const cd = parseCentralDirectory(bytes);
+    assert.equal(cd.length, 5);
+    assert.deepEqual(cd.map((e) => e.name).sort(), [
+        '[Content_Types].xml',
+        '_rels/.rels',
+        'word/_rels/document.xml.rels',
+        'word/document.xml',
+        'word/styles.xml',
+    ].sort());
+    assert.ok(cd.every((e) => e.nameLen > 0));
+});
+
+test('document.xml 的 w:t 不含换行（Word 无法读取含换行的文本节点）', () => {
+    const markdown = '```json\n{"a":1}\n{"b":2}\n```\n';
+    const bytes = docx.buildDocxBytesFromMarkdown(markdown);
+    const xml = extractZipText(bytes, 'word/document.xml');
+    assert.doesNotMatch(xml, /<w:t[^>]*>[^<]*\n[^<]*<\/w:t>/);
+    assert.match(xml, /\{&quot;a&quot;:1\}/);
+});
+
+test('首页封面使用动态目标与日期，并分页后再输出正文', () => {
+    const conversation = {
+        title: '登录页排查',
+        createdAt: '2026-09-01T08:00:00+08:00',
+        messages: [{ role: 'user', content: '对 http://221.226.65.58:23000/staragent/login 进行测试' }],
+    };
+    const bytes = docx.buildDocxBytesFromMarkdown('# 登录页排查\n\n**高危** 发现 `xss`', conversation);
+    const xml = extractZipText(bytes, 'word/document.xml');
+    assert.match(xml, /渗透测试报告/);
+    assert.match(xml, /Penetration Test Report/);
+    assert.match(xml, /http:\/\/221\.226\.65\.58:23000\/staragent\/login 进行渗透测试/);
+    assert.match(xml, /报告日期：2026-09-01/);
+    assert.match(xml, /密级：内部资料/);
+    assert.match(xml, /w:type="page"/);
+    assert.match(xml, /w:val="Heading1"/);
+    assert.match(xml, /<w:b\/>/);
+});
+
+test('docx 含 Word 标题样式定义', () => {
+    const bytes = docx.buildDocxBytesFromMarkdown('# 标题', { title: '标题' });
+    const styles = extractZipText(bytes, 'word/styles.xml');
+    assert.match(styles, /w:styleId="Heading1"/);
+    assert.match(styles, /w:styleId="Heading2"/);
+    const cd = parseCentralDirectory(bytes);
+    assert.equal(cd.some((e) => e.name === 'word/styles.xml'), true);
+});
+
+function parseCentralDirectory(bytes) {
+    const end = bytes.length - 22;
+    assert.equal(bytes[end], 0x50);
+    assert.equal(bytes[end + 1], 0x4b);
+    assert.equal(bytes[end + 2], 0x05);
+    assert.equal(bytes[end + 3], 0x06);
+    const n = bytes[end + 8] | (bytes[end + 9] << 8);
+    let off = bytes[end + 16] | (bytes[end + 17] << 8) | (bytes[end + 18] << 16) | (bytes[end + 19] << 24);
+    const entries = [];
+    for (let i = 0; i < n; i++) {
+        assert.equal(bytes[off], 0x50);
+        assert.equal(bytes[off + 1], 0x4b);
+        assert.equal(bytes[off + 2], 0x01);
+        assert.equal(bytes[off + 3], 0x02);
+        const nameLen = bytes[off + 28] | (bytes[off + 29] << 8);
+        const extraLen = bytes[off + 30] | (bytes[off + 31] << 8);
+        const commentLen = bytes[off + 32] | (bytes[off + 33] << 8);
+        const name = Buffer.from(bytes.subarray(off + 46, off + 46 + nameLen)).toString('utf8');
+        entries.push({ name, nameLen });
+        off += 46 + nameLen + extraLen + commentLen;
+    }
+    return entries;
+}
+
 function extractZipText(bytes, fileName) {
     const nameBytes = Buffer.from(fileName, 'utf8');
     for (let i = 0; i < bytes.length - 30; i++) {

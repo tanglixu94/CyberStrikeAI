@@ -10676,7 +10676,7 @@ async function downloadConversationWordFromContext() {
         }
 
         const markdown = formatConversationAsMarkdown(conversation || {}, { includeToolDetails: true });
-        const blob = window.ConversationDocx.buildDocxBlobFromMarkdown(markdown);
+        const blob = window.ConversationDocx.buildDocxBlobFromMarkdown(markdown, conversation || {});
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;

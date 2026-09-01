@@ -67,7 +67,7 @@
             var localView = new DataView(local.buffer);
             writeU32(localView, 0, 0x04034b50);
             writeU16(localView, 4, 20);
-            writeU16(localView, 6, 0x0800);
+            writeU16(localView, 6, 0);
             writeU16(localView, 8, 0);
             writeU16(localView, 10, 0);
             writeU16(localView, 12, 0);
@@ -83,18 +83,18 @@
             writeU32(centralView, 0, 0x02014b50);
             writeU16(centralView, 4, 20);
             writeU16(centralView, 6, 20);
-            writeU16(centralView, 8, 0x0800);
+            writeU16(centralView, 8, 0);
             writeU16(centralView, 10, 0);
             writeU16(centralView, 12, 0);
             writeU16(centralView, 14, 0);
             writeU32(centralView, 16, crc);
             writeU32(centralView, 20, data.length);
             writeU32(centralView, 24, data.length);
-            writeU16(centralView, 26, nameBytes.length);
-            writeU16(centralView, 28, 0);
+            writeU16(centralView, 28, nameBytes.length);
             writeU16(centralView, 30, 0);
             writeU16(centralView, 32, 0);
             writeU16(centralView, 34, 0);
+            writeU16(centralView, 36, 0);
             writeU32(centralView, 38, 0);
             writeU32(centralView, 42, offset);
             central.set(nameBytes, 46);
@@ -118,9 +118,46 @@
         return u8Concat(localParts.concat([centralDir, end]));
     }
 
+    function firstUserMessage(conversation) {
+        var messages = conversation && conversation.messages;
+        if (!Array.isArray(messages)) return '';
+        var i;
+        for (i = 0; i < messages.length; i++) {
+            if (messages[i] && messages[i].role === 'user' && typeof messages[i].content === 'string') {
+                return messages[i].content;
+            }
+        }
+        return '';
+    }
+
+    function extractUrl(text) {
+        var match = String(text || '').match(/https?:\/\/[^\s<>"'，。；、]+/i);
+        if (!match) return '';
+        return match[0].replace(/[),.;，。]+$/g, '');
+    }
+
+    function resolveReportSubject(conversation) {
+        var title = String((conversation && conversation.title) || '').trim();
+        var userText = firstUserMessage(conversation);
+        return extractUrl(title) || extractUrl(userText) || title || '未指定目标';
+    }
+
+    function pad2(n) {
+        return n < 10 ? '0' + n : String(n);
+    }
+
+    function formatReportDate(conversation) {
+        var raw = conversation && (conversation.updatedAt || conversation.createdAt);
+        var date = raw ? new Date(raw) : new Date();
+        if (isNaN(date.getTime())) date = new Date();
+        return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate());
+    }
+
     function escapeXml(text) {
         return String(text)
             .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+            .replace(/\r\n/g, '\n')
+            .replace(/[\r\n]/g, ' ')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
@@ -137,18 +174,21 @@
             i += 4000;
         }
         if (chunks.length === 0) chunks.push('');
-        var rPr = '';
-        if (opts.bold || opts.size || opts.mono) {
-            rPr = '<w:rPr>';
-            if (opts.mono) {
-                rPr += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="宋体"/>';
-            } else {
-                rPr += '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="微软雅黑"/>';
-            }
-            if (opts.bold) rPr += '<w:b/>';
-            if (opts.size) rPr += '<w:sz w:val="' + opts.size + '"/><w:szCs w:val="' + opts.size + '"/>';
-            rPr += '</w:rPr>';
+        var rPr = '<w:rPr>';
+        if (opts.cover) {
+            rPr += '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="宋体"/>';
+        } else if (opts.mono) {
+            rPr += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:eastAsia="宋体"/>';
+        } else {
+            rPr += '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="微软雅黑"/>';
         }
+        if (opts.bold) rPr += '<w:b/>';
+        if (opts.italic) rPr += '<w:i/>';
+        if (opts.underline) rPr += '<w:u w:val="single"/>';
+        if (opts.color) rPr += '<w:color w:val="' + opts.color + '"/>';
+        if (opts.size) rPr += '<w:sz w:val="' + opts.size + '"/><w:szCs w:val="' + opts.size + '"/>';
+        if (opts.shade) rPr += '<w:shd w:val="clear" w:fill="' + opts.shade + '"/>';
+        rPr += '</w:rPr>';
         var xml = '';
         for (var c = 0; c < chunks.length; c++) {
             xml += '<w:r>' + rPr + '<w:t xml:space="preserve">' + escapeXml(chunks[c]) + '</w:t></w:r>';
@@ -156,20 +196,100 @@
         return xml;
     }
 
-    function paragraph(text, opts) {
-        opts = opts || {};
-        var pPr = '<w:pPr>';
-        if (opts.spacingAfter) {
-            pPr += '<w:spacing w:after="' + opts.spacingAfter + '"/>';
+    function mergeOpts(base, extra) {
+        var out = {};
+        var key;
+        base = base || {};
+        extra = extra || {};
+        for (key in base) {
+            if (Object.prototype.hasOwnProperty.call(base, key)) out[key] = base[key];
         }
-        if (opts.shading) {
-            pPr += '<w:shd w:val="clear" w:fill="' + opts.shading + '"/>';
+        for (key in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, key)) out[key] = extra[key];
         }
-        pPr += '</w:pPr>';
-        return '<w:p>' + pPr + textRun(text, opts) + '</w:p>';
+        return out;
     }
 
-    function markdownToDocumentXml(markdown) {
+    function inlineRuns(text, baseOpts) {
+        var source = String(text || '');
+        var re = /(`[^`]+`|\*\*[^*]+?\*\*|\*[^*\n]+?\*|\[[^\]]+\]\([^)]+\))/g;
+        var xml = '';
+        var last = 0;
+        var match;
+        while ((match = re.exec(source))) {
+            if (match.index > last) xml += textRun(source.slice(last, match.index), baseOpts);
+            var token = match[0];
+            if (token.charAt(0) === '`') {
+                xml += textRun(token.slice(1, -1), mergeOpts(baseOpts, { mono: true, shade: 'EEEEEE', size: 18 }));
+            } else if (token.slice(0, 2) === '**') {
+                xml += textRun(token.slice(2, -2), mergeOpts(baseOpts, { bold: true }));
+            } else if (token.charAt(0) === '*') {
+                xml += textRun(token.slice(1, -1), mergeOpts(baseOpts, { italic: true }));
+            } else {
+                var link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
+                xml += textRun((link && link[1] ? link[1] : token) + (link && link[2] ? ' (' + link[2] + ')' : ''), mergeOpts(baseOpts, { color: '0563C1', underline: true }));
+            }
+            last = match.index + token.length;
+        }
+        if (last < source.length) xml += textRun(source.slice(last), baseOpts);
+        if (!xml) xml += textRun(' ', baseOpts);
+        return xml;
+    }
+
+    function paragraphRuns(runsXml, opts) {
+        opts = opts || {};
+        var pPr = '<w:pPr>';
+        if (opts.style) pPr += '<w:pStyle w:val="' + opts.style + '"/>';
+        if (opts.align) pPr += '<w:jc w:val="' + opts.align + '"/>';
+        if (opts.spacingBefore || opts.spacingAfter) {
+            pPr += '<w:spacing';
+            if (opts.spacingBefore) pPr += ' w:before="' + opts.spacingBefore + '"';
+            if (opts.spacingAfter) pPr += ' w:after="' + opts.spacingAfter + '"';
+            pPr += '/>';
+        }
+        if (opts.indent) pPr += '<w:ind w:left="' + opts.indent + '"/>';
+        if (opts.shading) pPr += '<w:shd w:val="clear" w:fill="' + opts.shading + '"/>';
+        pPr += '</w:pPr>';
+        return '<w:p>' + pPr + runsXml + '</w:p>';
+    }
+
+    function paragraph(text, opts) {
+        opts = opts || {};
+        if (opts.plain) return paragraphRuns(textRun(text, opts), opts);
+        return paragraphRuns(inlineRuns(text, opts), opts);
+    }
+
+    function flushCodeLines(body, codeLines, closed) {
+        if (codeLines.length === 0) {
+            body.push(paragraph(' ', { plain: true, mono: true, size: 18, shading: 'F4F4F5', spacingAfter: closed ? 160 : 0 }));
+            return;
+        }
+        var ci;
+        for (ci = 0; ci < codeLines.length; ci++) {
+            body.push(paragraph(codeLines[ci] === '' ? ' ' : codeLines[ci], {
+                plain: true,
+                mono: true,
+                size: 18,
+                shading: 'F4F4F5',
+                spacingAfter: (closed && ci === codeLines.length - 1) ? 160 : 0
+            }));
+        }
+    }
+
+    function buildCoverXml(conversation) {
+        var subject = resolveReportSubject(conversation);
+        var date = formatReportDate(conversation);
+        return [
+            paragraph('渗透测试报告', { plain: true, cover: true, bold: true, size: 56, align: 'center', spacingBefore: 1800, spacingAfter: 200 }),
+            paragraph('Penetration Test Report', { plain: true, cover: true, size: 24, align: 'center', spacingAfter: 2800 }),
+            paragraph('《' + subject + ' 进行渗透测试》', { plain: true, cover: true, size: 22, align: 'center', spacingAfter: 5600 }),
+            paragraph('报告日期：' + date, { plain: true, cover: true, size: 21, align: 'center', spacingAfter: 80 }),
+            paragraph('密级：内部资料', { plain: true, cover: true, size: 21, align: 'center', spacingAfter: 200 }),
+            '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+        ].join('');
+    }
+
+    function markdownToBodyXml(markdown) {
         var lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
         var body = [];
         var inCode = false;
@@ -179,7 +299,7 @@
             var line = lines[i];
             if (line.trim().indexOf('```') === 0) {
                 if (inCode) {
-                    body.push(paragraph(codeLines.join('\n') || ' ', { mono: true, size: 18, shading: 'F4F4F5', spacingAfter: 120 }));
+                    flushCodeLines(body, codeLines, true);
                     codeLines = [];
                     inCode = false;
                 } else {
@@ -197,27 +317,39 @@
             var heading = /^(#{1,6})\s+(.*)$/.exec(line);
             if (heading) {
                 var level = heading[1].length;
-                var size = level === 1 ? 36 : (level === 2 ? 28 : 24);
-                body.push(paragraph(heading[2], { bold: true, size: size, spacingAfter: 160 }));
+                var style = level === 1 ? 'Heading1' : (level === 2 ? 'Heading2' : 'Heading3');
+                body.push(paragraph(heading[2], { style: style, spacingAfter: 160 }));
                 continue;
             }
             if (/^\s*[-*]\s+/.test(line)) {
-                body.push(paragraph('• ' + line.replace(/^\s*[-*]\s+/, ''), { size: 21, spacingAfter: 80 }));
+                body.push(paragraph('• ' + line.replace(/^\s*[-*]\s+/, ''), { size: 21, indent: 420, spacingAfter: 80 }));
                 continue;
             }
-            body.push(paragraph(line.replace(/^>\s?/, ''), { size: 21, spacingAfter: 120 }));
+            body.push(paragraph(line.replace(/^>\s?/, ''), { size: 21, spacingAfter: 140 }));
         }
-        if (inCode) {
-            body.push(paragraph(codeLines.join('\n') || ' ', { mono: true, size: 18, shading: 'F4F4F5' }));
-        }
+        if (inCode) flushCodeLines(body, codeLines, true);
         if (body.length === 0) {
             body.push(paragraph('（无内容）', { size: 21 }));
         }
+        return body.join('');
+    }
+
+    function markdownToDocumentXml(markdown, conversation) {
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
             '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-            '<w:body>' + body.join('') +
+            '<w:body>' + buildCoverXml(conversation) + markdownToBodyXml(markdown) +
             '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708"/></w:sectPr>' +
             '</w:body></w:document>';
+    }
+
+    function stylesXml() {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+            '<w:style w:type="paragraph" w:styleId="Normal" w:default="1"><w:name w:val="Normal"/><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="微软雅黑"/><w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:style>' +
+            '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="0"/><w:spacing w:before="360" w:after="160"/></w:pPr><w:rPr><w:b/><w:sz w:val="36"/><w:szCs w:val="36"/><w:color w:val="1F4E79"/></w:rPr></w:style>' +
+            '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="1"/><w:spacing w:before="280" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/><w:color w:val="2E75B6"/></w:rPr></w:style>' +
+            '<w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="2"/><w:spacing w:before="200" w:after="80"/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/><w:szCs w:val="24"/><w:color w:val="5B9BD5"/></w:rPr></w:style>' +
+            '</w:styles>';
     }
 
     function contentTypesXml() {
@@ -226,6 +358,7 @@
             '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
             '<Default Extension="xml" ContentType="application/xml"/>' +
             '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+            '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
             '</Types>';
     }
 
@@ -233,6 +366,13 @@
         return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
             '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+            '</Relationships>';
+    }
+
+    function documentRelsXml() {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
             '</Relationships>';
     }
 
@@ -256,16 +396,18 @@
         return safe + '_报告.docx';
     }
 
-    function buildDocxBytesFromMarkdown(markdown) {
+    function buildDocxBytesFromMarkdown(markdown, conversation) {
         return zipStore([
             { name: '[Content_Types].xml', data: encodeUtf8(contentTypesXml()) },
             { name: '_rels/.rels', data: encodeUtf8(relsXml()) },
-            { name: 'word/document.xml', data: encodeUtf8(markdownToDocumentXml(markdown)) }
+            { name: 'word/_rels/document.xml.rels', data: encodeUtf8(documentRelsXml()) },
+            { name: 'word/styles.xml', data: encodeUtf8(stylesXml()) },
+            { name: 'word/document.xml', data: encodeUtf8(markdownToDocumentXml(markdown, conversation)) }
         ]);
     }
 
-    function buildDocxBlobFromMarkdown(markdown) {
-        var bytes = buildDocxBytesFromMarkdown(markdown);
+    function buildDocxBlobFromMarkdown(markdown, conversation) {
+        var bytes = buildDocxBytesFromMarkdown(markdown, conversation);
         return new Blob([bytes], {
             type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         });
