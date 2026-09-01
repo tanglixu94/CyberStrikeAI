@@ -22,6 +22,7 @@ config.yaml.backup
 
 # Upgrade / settings backups
 .upgrade-backup/
+upgrade-packages/
 
 # Eino runtime task board (under skills_dir)
 skills/.eino/
