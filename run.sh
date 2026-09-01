@@ -66,7 +66,7 @@ print_banner() {
     echo ""
     echo "=========================================="
     echo "  CyberStrikeAI Deploy & Start Script"
-    echo "  (HTTPS with self-signed cert by default; plain HTTP: $0 --http)"
+    echo "  (plain HTTP by default; HTTPS with self-signed cert: $0 --https)"
     echo "=========================================="
     echo ""
 
@@ -403,9 +403,9 @@ need_rebuild() {
 }
 
 # Main flow
-# Default: HTTPS (--https passed to binary); --http forces plain HTTP even if config.yaml enables TLS.
+# Default: follow config.yaml (example has TLS off). --https / --http override the config.
 main() {
-    USE_HTTPS=1
+    USE_HTTPS=""
     RESET_ADMIN_PASSWORD=0
     FORWARD_ARGS=()
     for arg in "$@"; do
@@ -472,28 +472,27 @@ main() {
     # Start server
     success "All setup complete!"
     echo ""
-    if [ "$USE_HTTPS" -eq 1 ]; then
+    if [ "$USE_HTTPS" = "1" ]; then
         info "Starting CyberStrikeAI server (HTTPS + HTTP/2, self-signed cert)..."
         note "For plain HTTP, use: $0 --http"
-    else
+        BOOTSTRAP_FLAG=(--https)
+    elif [ "$USE_HTTPS" = "0" ]; then
         info "Starting CyberStrikeAI server (HTTP)..."
+        note "For HTTPS, use: $0 --https"
+        BOOTSTRAP_FLAG=(--http)
+    else
+        info "Starting CyberStrikeAI server (TLS follows config.yaml; default is HTTP)..."
+        note "Override with: $0 --https  or  $0 --http"
+        BOOTSTRAP_FLAG=()
     fi
     echo "=========================================="
     echo ""
 
     # Always pass config.yaml from project root so cwd does not matter; extra args still apply (e.g. -config override; last Go flag wins).
-    if [ "$USE_HTTPS" -eq 1 ]; then
-        if [ "${#FORWARD_ARGS[@]}" -gt 0 ]; then
-            exec "./$BINARY_NAME" -config "$CONFIG_FILE" --https "${FORWARD_ARGS[@]}"
-        else
-            exec "./$BINARY_NAME" -config "$CONFIG_FILE" --https
-        fi
+    if [ "${#FORWARD_ARGS[@]}" -gt 0 ]; then
+        exec "./$BINARY_NAME" -config "$CONFIG_FILE" "${BOOTSTRAP_FLAG[@]}" "${FORWARD_ARGS[@]}"
     else
-        if [ "${#FORWARD_ARGS[@]}" -gt 0 ]; then
-            exec "./$BINARY_NAME" -config "$CONFIG_FILE" --http "${FORWARD_ARGS[@]}"
-        else
-            exec "./$BINARY_NAME" -config "$CONFIG_FILE" --http
-        fi
+        exec "./$BINARY_NAME" -config "$CONFIG_FILE" "${BOOTSTRAP_FLAG[@]}"
     fi
 }
 

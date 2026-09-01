@@ -1004,7 +1004,7 @@ html[data-theme="dark"] header {
     color: var(--accent-color);
 }
 
-/* 品牌字标：CyberStrike + AI 渐变 */
+/* 品牌字标：Star + Sec 渐变 */
 .brand-wordmark {
     display: inline-flex;
     align-items: baseline;
@@ -1099,6 +1099,10 @@ html[data-theme="dark"] header {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.header-actions [hidden] {
+    display: none !important;
 }
 
 .lang-switcher {

@@ -4291,28 +4291,28 @@ function describeHitlApprovalRequest(data) {
     const isCommand = !!command || /(^|::|_)exec$|shell|terminal|command|run_command/.test(toolName);
     const isFile = !!path || /write_file|edit_file|apply_patch|delete_file|move_file/.test(toolName);
     let displayTool = rawToolName;
-    let question = hitlApprovalTemplate('hitl.requestGeneric', '允许 CyberStrikeAI 调用 {{tool}}？', { tool: rawToolName });
+    let question = hitlApprovalTemplate('hitl.requestGeneric', '允许 StarSec 调用 {{tool}}？', { tool: rawToolName });
     let primary = '';
     let kind = 'generic';
     if (isBrowser) {
         kind = 'browser';
         question = url
             ? (url.length > 160
-                ? hitlApprovalTranslate('hitl.requestVisitLongUrl', '允许 CyberStrikeAI 访问此地址？')
-                : hitlApprovalTemplate('hitl.requestVisitUrl', '允许 CyberStrikeAI 访问 {{url}}？', { url: url }))
-            : hitlApprovalTranslate('hitl.requestBrowser', '允许 CyberStrikeAI 使用浏览器？');
+                ? hitlApprovalTranslate('hitl.requestVisitLongUrl', '允许 StarSec 访问此地址？')
+                : hitlApprovalTemplate('hitl.requestVisitUrl', '允许 StarSec 访问 {{url}}？', { url: url }))
+            : hitlApprovalTranslate('hitl.requestBrowser', '允许 StarSec 使用浏览器？');
         primary = url;
     } else if (isCommand) {
         kind = 'command';
-        question = hitlApprovalTranslate('hitl.requestCommand', '允许 CyberStrikeAI 执行这条命令？');
+        question = hitlApprovalTranslate('hitl.requestCommand', '允许 StarSec 执行这条命令？');
         primary = command;
     } else if (isFile) {
         kind = 'file';
         question = path
             ? (path.length > 160
-                ? hitlApprovalTranslate('hitl.requestModifyLongPath', '允许 CyberStrikeAI 修改此文件？')
-                : hitlApprovalTemplate('hitl.requestFile', '允许 CyberStrikeAI 修改 {{path}}？', { path: path }))
-            : hitlApprovalTranslate('hitl.requestFiles', '允许 CyberStrikeAI 修改文件？');
+                ? hitlApprovalTranslate('hitl.requestModifyLongPath', '允许 StarSec 修改此文件？')
+                : hitlApprovalTemplate('hitl.requestFile', '允许 StarSec 修改 {{path}}？', { path: path }))
+            : hitlApprovalTranslate('hitl.requestFiles', '允许 StarSec 修改文件？');
         primary = path;
     }
     return {

@@ -8865,7 +8865,7 @@ function _acBuildSvgString() {
     parts.push(`<line x1="${OUTER_PAD + 40}" y1="${fY + 16}" x2="${OUTER_PAD + contentW - 40}" y2="${fY + 16}" stroke="rgba(15,23,42,0.06)" stroke-width="1"/>`);
     // 左侧品牌
     parts.push(`<circle cx="${OUTER_PAD + 44}" cy="${fY + 34}" r="5" fill="url(#ac-brand)"/>`);
-    parts.push(`<text x="${OUTER_PAD + 56}" y="${fY + 38}" font-size="11.5" font-weight="600" fill="#64748B">CyberStrikeAI <tspan fill="#94A3B8" font-weight="500">· Attack Chain Visualization Report</tspan></text>`);
+    parts.push(`<text x="${OUTER_PAD + 56}" y="${fY + 38}" font-size="11.5" font-weight="600" fill="#64748B">StarSec <tspan fill="#94A3B8" font-weight="500">· Attack Chain Visualization Report</tspan></text>`);
     // 右侧时间戳
     parts.push(`<text x="${OUTER_PAD + contentW - 40}" y="${fY + 38}" font-size="11.5" font-weight="500" fill="#94A3B8" text-anchor="end">${_acEscapeXml(ts)}</text>`);
 
@@ -10646,6 +10646,48 @@ async function downloadConversationMarkdownFromContext(includeToolDetails = fals
     } catch (error) {
         console.error('下载对话 Markdown 失败:', error);
         const failedLabel = typeof window.t === 'function' ? window.t('chat.downloadConversationFailed') : '下载失败';
+        const errMsg = error && error.message ? error.message : 'unknown error';
+        alert(failedLabel + ': ' + errMsg);
+    }
+
+    closeContextMenu();
+}
+
+async function downloadConversationWordFromContext() {
+    const convId = contextMenuConversationId;
+    if (!convId) return;
+    if (!window.ConversationDocx || typeof window.ConversationDocx.buildDocxBlobFromMarkdown !== 'function') {
+        alert('Word 导出组件未加载');
+        closeContextMenu();
+        return;
+    }
+
+    try {
+        const response = await apiFetch(`/api/conversations/${convId}?include_process_details=1`);
+        let conversation = null;
+        try {
+            conversation = await response.json();
+        } catch (e) {
+            conversation = null;
+        }
+        if (!response.ok) {
+            const errorMsg = conversation && conversation.error ? conversation.error : 'unknown error';
+            throw new Error(errorMsg);
+        }
+
+        const markdown = formatConversationAsMarkdown(conversation || {}, { includeToolDetails: true });
+        const blob = window.ConversationDocx.buildDocxBlobFromMarkdown(markdown);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = window.ConversationDocx.buildConversationWordFileName(conversation || {});
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('下载 Word 报告失败:', error);
+        const failedLabel = typeof window.t === 'function' ? window.t('chat.downloadConversationWordFailed') : '下载 Word 报告失败';
         const errMsg = error && error.message ? error.message : 'unknown error';
         alert(failedLabel + ': ' + errMsg);
     }
