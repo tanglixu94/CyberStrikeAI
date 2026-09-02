@@ -289,6 +289,100 @@
         ].join('');
     }
 
+    function parseMdTableCells(line) {
+        var trimmed = String(line || '').trim();
+        if (!trimmed) return [];
+        if (trimmed.charAt(0) === '|') trimmed = trimmed.slice(1);
+        if (trimmed.charAt(trimmed.length - 1) === '|') trimmed = trimmed.slice(0, -1);
+        return trimmed.split('|').map(function (cell) {
+            return cell.trim();
+        });
+    }
+
+    function isMdTableSeparator(line) {
+        var cells = parseMdTableCells(line);
+        if (cells.length < 2) return false;
+        var i;
+        for (i = 0; i < cells.length; i++) {
+            if (!/^:?-{3,}:?$/.test(cells[i].replace(/\s/g, ''))) return false;
+        }
+        return true;
+    }
+
+    function looksLikeMdTableRow(line) {
+        var trimmed = String(line || '').trim();
+        if (trimmed.indexOf('|') < 0) return false;
+        return parseMdTableCells(trimmed).length >= 2;
+    }
+
+    function tableBorder(tag) {
+        return '<' + tag + ' w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>';
+    }
+
+    function tableCellXml(text, opts) {
+        opts = opts || {};
+        var tcPr = '<w:tcPr>';
+        if (opts.width) tcPr += '<w:tcW w:w="' + opts.width + '" w:type="dxa"/>';
+        tcPr += '<w:tcBorders>' +
+            tableBorder('w:top') + tableBorder('w:left') + tableBorder('w:bottom') + tableBorder('w:right') +
+            '</w:tcBorders>';
+        if (opts.header) tcPr += '<w:shd w:val="clear" w:fill="1F4E79"/>';
+        tcPr += '<w:vAlign w:val="center"/>';
+        tcPr += '</w:tcPr>';
+        var runOpts = opts.header
+            ? { bold: true, color: 'FFFFFF', size: 20 }
+            : { size: 20 };
+        var p = paragraph(text || ' ', runOpts);
+        return '<w:tc>' + tcPr + p + '</w:tc>';
+    }
+
+    function markdownTableXml(rows) {
+        var colCount = 0;
+        var r;
+        for (r = 0; r < rows.length; r++) {
+            if (rows[r].length > colCount) colCount = rows[r].length;
+        }
+        if (colCount < 1) return '';
+        var usable = 9026;
+        var colW = Math.max(1200, Math.floor(usable / colCount));
+        var xml = '<w:tbl><w:tblPr><w:tblW w:w="' + (colW * colCount) + '" w:type="dxa"/>' +
+            '<w:tblBorders>' +
+            tableBorder('w:top') + tableBorder('w:left') + tableBorder('w:bottom') + tableBorder('w:right') +
+            tableBorder('w:insideH') + tableBorder('w:insideV') +
+            '</w:tblBorders></w:tblPr><w:tblGrid>';
+        var c;
+        for (c = 0; c < colCount; c++) {
+            xml += '<w:gridCol w:w="' + colW + '"/>';
+        }
+        xml += '</w:tblGrid>';
+        for (r = 0; r < rows.length; r++) {
+            xml += '<w:tr>';
+            for (c = 0; c < colCount; c++) {
+                xml += tableCellXml(rows[r][c] || '', { header: r === 0, width: colW });
+            }
+            xml += '</w:tr>';
+        }
+        xml += '</w:tbl>';
+        xml += paragraph(' ', { size: 10, spacingAfter: 80 });
+        return xml;
+    }
+
+    function consumeMarkdownTable(lines, start) {
+        if (!looksLikeMdTableRow(lines[start]) || !isMdTableSeparator(lines[start + 1] || '')) {
+            return null;
+        }
+        var header = parseMdTableCells(lines[start]);
+        var rows = [header];
+        var i = start + 2;
+        while (i < lines.length && looksLikeMdTableRow(lines[i]) && !isMdTableSeparator(lines[i])) {
+            var cells = parseMdTableCells(lines[i]);
+            while (cells.length < header.length) cells.push('');
+            rows.push(cells);
+            i += 1;
+        }
+        return { xml: markdownTableXml(rows), next: i };
+    }
+
     function markdownToBodyXml(markdown) {
         var lines = String(markdown || '').replace(/\r\n/g, '\n').split('\n');
         var body = [];
@@ -309,6 +403,12 @@
             }
             if (inCode) {
                 codeLines.push(line);
+                continue;
+            }
+            var table = consumeMarkdownTable(lines, i);
+            if (table) {
+                body.push(table.xml);
+                i = table.next - 1;
                 continue;
             }
             if (!line.trim() || /^---+$/.test(line.trim())) {

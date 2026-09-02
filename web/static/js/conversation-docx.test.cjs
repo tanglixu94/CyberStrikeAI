@@ -86,6 +86,31 @@ test('docx 含 Word 标题样式定义', () => {
     assert.equal(cd.some((e) => e.name === 'word/styles.xml'), true);
 });
 
+test('Markdown 表格会转成 Word 表格而不是管道原文', () => {
+    const markdown = [
+        '## 系统识别',
+        '',
+        '| 项目 | 信息 |',
+        '|------|------|',
+        '| 服务名称 | Wan2.2-TI2V-5B 视频生成服务 |',
+        '| Web 服务器 | gunicorn |',
+        '| 文件存储路径 | `/home/aigc/model/wan22/outputs/` |',
+        '',
+        '后续说明。',
+    ].join('\n');
+    const xml = extractZipText(docx.buildDocxBytesFromMarkdown(markdown), 'word/document.xml');
+    assert.match(xml, /<w:tbl>/);
+    assert.match(xml, /<w:tr>/);
+    assert.match(xml, /<w:tc>/);
+    assert.match(xml, /服务名称/);
+    assert.match(xml, /Wan2\.2-TI2V-5B 视频生成服务/);
+    assert.match(xml, /gunicorn/);
+    assert.match(xml, /\/home\/aigc\/model\/wan22\/outputs\//);
+    assert.doesNotMatch(xml, /\|------\|/);
+    assert.doesNotMatch(xml, /\| 项目 \|/);
+    assert.match(xml, /后续说明/);
+});
+
 function parseCentralDirectory(bytes) {
     const end = bytes.length - 22;
     assert.equal(bytes[end], 0x50);

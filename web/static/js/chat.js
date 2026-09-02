@@ -10540,6 +10540,7 @@ function getConversationRoleLabel(role) {
 
 function formatConversationAsMarkdown(conversation, options = {}) {
     const includeToolDetails = !!options.includeToolDetails;
+    const includeProcessDetails = options.includeProcessDetails !== false;
     const title = (conversation && conversation.title ? String(conversation.title) : '').trim() || 'Untitled Conversation';
     const createdAt = formatConversationDateForMarkdown(conversation && conversation.createdAt);
     const updatedAt = formatConversationDateForMarkdown(conversation && conversation.updatedAt);
@@ -10570,7 +10571,7 @@ function formatConversationAsMarkdown(conversation, options = {}) {
         markdown += '\n\n';
         markdown += content ? `${content}\n\n` : '_[Empty message]_\n\n';
 
-        if (Array.isArray(msg && msg.processDetails) && msg.processDetails.length > 0) {
+        if (includeProcessDetails && Array.isArray(msg && msg.processDetails) && msg.processDetails.length > 0) {
             markdown += '### Process Details\n\n';
             msg.processDetails.forEach((detail) => {
                 const detailTime = formatConversationDateForMarkdown(detail && detail.timestamp);
@@ -10592,7 +10593,7 @@ function formatConversationAsMarkdown(conversation, options = {}) {
             markdown += '\n';
         }
 
-        if (Array.isArray(msg && msg.mcpExecutionIds) && msg.mcpExecutionIds.length > 0) {
+        if (includeProcessDetails && Array.isArray(msg && msg.mcpExecutionIds) && msg.mcpExecutionIds.length > 0) {
             markdown += `- MCP Execution IDs: ${msg.mcpExecutionIds.join(', ')}\n\n`;
         }
 
@@ -10663,7 +10664,7 @@ async function downloadConversationWordFromContext() {
     }
 
     try {
-        const response = await apiFetch(`/api/conversations/${convId}?include_process_details=1`);
+        const response = await apiFetch(`/api/conversations/${convId}?include_process_details=0`);
         let conversation = null;
         try {
             conversation = await response.json();
@@ -10675,7 +10676,10 @@ async function downloadConversationWordFromContext() {
             throw new Error(errorMsg);
         }
 
-        const markdown = formatConversationAsMarkdown(conversation || {}, { includeToolDetails: true });
+        const markdown = formatConversationAsMarkdown(conversation || {}, {
+            includeToolDetails: false,
+            includeProcessDetails: false
+        });
         const blob = window.ConversationDocx.buildDocxBlobFromMarkdown(markdown, conversation || {});
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
