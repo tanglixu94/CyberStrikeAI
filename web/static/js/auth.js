@@ -5,6 +5,7 @@ let authUser = null;
 let authRoles = [];
 let authPermissions = new Set();
 let authScope = '';
+let authUiGrants = { sidebar_page: [], settings_section: [], button: [] };
 let authPromise = null;
 let authPromiseResolvers = [];
 let isAppInitialized = false;
@@ -17,6 +18,16 @@ function isTokenValid() {
     return !!authToken && authTokenExpiry instanceof Date && authTokenExpiry.getTime() > Date.now();
 }
 
+function normalizeAuthUiGrants(grants) {
+    const source = grants && typeof grants === 'object' ? grants : {};
+    const list = (value) => (Array.isArray(value) ? value.map((item) => String(item || '').trim()).filter(Boolean) : []);
+    return {
+        sidebar_page: list(source.sidebar_page),
+        settings_section: list(source.settings_section),
+        button: list(source.button),
+    };
+}
+
 function saveAuth(token, expiresAt, meta = {}) {
     const expiry = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
     authToken = token;
@@ -25,6 +36,10 @@ function saveAuth(token, expiresAt, meta = {}) {
     authRoles = Array.isArray(meta.roles) ? meta.roles : [];
     authPermissions = new Set(Array.isArray(meta.permissions) ? meta.permissions : []);
     authScope = meta.scope || '';
+    authUiGrants = normalizeAuthUiGrants(meta.uiGrants);
+    if (typeof setAuthUiGrants === 'function') {
+        setAuthUiGrants(authUiGrants);
+    }
     try {
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
             token,
@@ -33,6 +48,7 @@ function saveAuth(token, expiresAt, meta = {}) {
             roles: authRoles,
             permissions: Array.from(authPermissions),
             scope: authScope,
+            uiGrants: authUiGrants,
         }));
     } catch (error) {
         console.warn('无法持久化认证信息:', error);
@@ -47,6 +63,10 @@ function clearAuthStorage() {
     authRoles = [];
     authPermissions = new Set();
     authScope = '';
+    authUiGrants = { sidebar_page: [], settings_section: [], button: [] };
+    if (typeof setAuthUiGrants === 'function') {
+        setAuthUiGrants(authUiGrants);
+    }
     try {
         localStorage.removeItem(AUTH_STORAGE_KEY);
     } catch (error) {
@@ -77,6 +97,10 @@ function loadAuthFromStorage() {
         authRoles = Array.isArray(stored.roles) ? stored.roles : [];
         authPermissions = new Set(Array.isArray(stored.permissions) ? stored.permissions : []);
         authScope = stored.scope || '';
+        authUiGrants = normalizeAuthUiGrants(stored.uiGrants);
+        if (typeof setAuthUiGrants === 'function') {
+            setAuthUiGrants(authUiGrants);
+        }
         return isTokenValid();
     } catch (error) {
         console.error('读取认证信息失败:', error);
@@ -296,6 +320,7 @@ async function submitLogin(event) {
             roles: result.roles,
             permissions: result.permissions,
             scope: result.scope,
+            uiGrants: result.uiGrants,
         });
         hideLoginOverlay();
         applyRBACToUI();
@@ -523,6 +548,9 @@ function applyRBACToUI(root) {
         userAvatar.setAttribute('aria-label', authT('header.userMenuFor', '用户菜单：{{name}}', { name: displayName }));
     }
     renderUserMenuProfile();
+    if (typeof applySidebarMenuVisibility === 'function') {
+        applySidebarMenuVisibility(root instanceof Element ? root : document);
+    }
 }
 
 function authT(key, fallback, opts = {}) {
@@ -685,6 +713,7 @@ async function initializeApp() {
                     roles: result.roles || authRoles,
                     permissions: result.permissions || Array.from(authPermissions),
                     scope: result.scope || authScope,
+                    uiGrants: result.uiGrants || authUiGrants,
                 });
                 hideLoginOverlay();
                 applyRBACToUI();

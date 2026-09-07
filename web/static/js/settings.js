@@ -634,6 +634,24 @@ window.syncC2NavOnceFromServer = async function syncC2NavOnceFromServer() {
 // 根据 C2 是否启用显示主导航 C2 入口与仪表盘接入概览中的 C2 子块（与 /api/config 的 c2.enabled 一致）
 function syncC2NavFromConfig(cfg) {
     const on = cfg && cfg.c2 && cfg.c2.enabled !== false;
+    if (typeof isRoleMenuVisibilityEnabled === 'function' && isRoleMenuVisibilityEnabled()) {
+        window.__c2Enabled = on;
+        const c2Tab = document.getElementById('dashboard-access-tab-c2');
+        if (c2Tab) {
+            if (!on) {
+                c2Tab.hidden = true;
+            } else {
+                c2Tab.removeAttribute('hidden');
+            }
+        }
+        if (typeof syncDashboardAccessTabs === 'function') {
+            syncDashboardAccessTabs();
+        }
+        if (typeof applySidebarMenuVisibility === 'function') {
+            applySidebarMenuVisibility(document);
+        }
+        return;
+    }
     const nav = document.getElementById('nav-c2');
     if (nav) {
         nav.style.display = on ? '' : 'none';

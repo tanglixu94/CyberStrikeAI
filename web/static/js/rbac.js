@@ -648,6 +648,7 @@ function renderRbacRoleCatalog() {
             <div class="rbac-catalog-card-foot">
                 <span>${rbacEscape(scope.hint)}</span>
                 <div>
+                    <button type="button" class="btn-secondary btn-small" onclick="openRoleMenuConfigModal('${rbacEscape(role.id)}', '${rbacEscape(rbacRoleName(role))}', ${rbacRoleIsSystem(role) ? 'true' : 'false'})">${rbacT('rbac.configureMenu', '配置菜单')}</button>
                     <button type="button" class="btn-secondary btn-small" onclick="openRbacRoleModal('${rbacEscape(role.id)}')">${rbacRoleIsSystem(role) ? rbacT('rbac.viewPermissions', '查看权限') : rbacT('common.edit', '编辑')}</button>
                     ${rbacRoleIsSystem(role) ? '' : `<button type="button" class="btn-secondary btn-small btn-delete" onclick="deleteRbacRole('${rbacEscape(role.id)}')">${rbacT('common.delete', '删除')}</button>`}
                 </div>

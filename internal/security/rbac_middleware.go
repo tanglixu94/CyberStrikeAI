@@ -40,10 +40,19 @@ func RBACMiddlewareWithDenyHook(db *database.DB, denyHook RBACDenyHook) gin.Hand
 			})
 			return
 		}
+		session, _ := CurrentSession(c)
+		if !SessionUIAllowsPermission(session, c.Request.Method, c.FullPath()) {
+			if denyHook != nil {
+				denyHook(c, "ui_grant_denied", permission)
+			}
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "菜单权限不足",
+			})
+			return
+		}
 		// Bind the scope of the permission authorizing this request. Scope is
 		// permission-specific; using the user's broadest role scope here would
 		// let an unrelated global read role widen a write permission.
-		session, _ := CurrentSession(c)
 		session.Scope = session.ScopeFor(permission)
 		c.Set(ContextSessionKey, session)
 		c.Set(ContextUserScopeKey, session.Scope)

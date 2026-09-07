@@ -99,6 +99,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		"permissions":       permissionKeys(session.Permissions),
 		"permission_scopes": session.PermissionScopes,
 		"scope":             session.Scope,
+		"uiGrants": gin.H{
+			"sidebar_page":     session.UiGrants.SidebarPage,
+			"settings_section": session.UiGrants.SettingsSection,
+			"button":           session.UiGrants.Button,
+		},
 	})
 }
 
@@ -223,6 +228,11 @@ func (h *AuthHandler) Validate(c *gin.Context) {
 		"permissions":       permissionKeys(session.Permissions),
 		"permission_scopes": session.PermissionScopes,
 		"scope":             session.Scope,
+		"uiGrants": gin.H{
+			"sidebar_page":     session.UiGrants.SidebarPage,
+			"settings_section": session.UiGrants.SettingsSection,
+			"button":           session.UiGrants.Button,
+		},
 	})
 }
 

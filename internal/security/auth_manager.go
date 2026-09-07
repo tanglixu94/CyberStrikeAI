@@ -28,6 +28,7 @@ type Session struct {
 	Permissions      map[string]bool
 	PermissionScopes map[string]string
 	Scope            string
+	UiGrants         UiGrants
 }
 
 // AuthManager manages password-based authentication and session lifecycle.
@@ -130,6 +131,10 @@ func (a *AuthManager) authenticateSession(username, password string) (Session, e
 	for _, role := range access.Roles {
 		roleIDs = append(roleIDs, role.ID)
 	}
+	uiGrants, err := ResolveUiGrantsForRoles(db, roleIDs)
+	if err != nil {
+		return Session{}, err
+	}
 	return Session{
 		Token:            token,
 		ExpiresAt:        expiresAt,
@@ -140,6 +145,7 @@ func (a *AuthManager) authenticateSession(username, password string) (Session, e
 		Permissions:      access.Permissions,
 		PermissionScopes: access.PermissionScopes,
 		Scope:            access.Scope,
+		UiGrants:         uiGrants,
 	}, nil
 }
 

@@ -6479,6 +6479,45 @@
         </div>
     </div>
 
+    <div id="role-menu-config-modal" class="modal role-menu-config-modal" role="dialog" aria-modal="true" aria-labelledby="role-menu-config-title">
+        <div class="modal-content role-menu-config-modal-content">
+            <div class="modal-header role-menu-config-header">
+                <div class="role-menu-config-header-text">
+                    <div class="role-menu-config-title-row">
+                        <h2 id="role-menu-config-title" data-i18n="rbac.menuConfig.pageTitle">配置菜单</h2>
+                        <span id="role-menu-config-role-pill" class="rbac-pill" hidden></span>
+                    </div>
+                    <p id="role-menu-config-subtitle" class="role-menu-config-subtitle"></p>
+                </div>
+                <span class="modal-close" onclick="closeRoleMenuConfigModal()" aria-label="关闭">&times;</span>
+            </div>
+            <div class="modal-body role-menu-config-body-wrap">
+                <div class="role-menu-config-summary">
+                    <div id="role-menu-config-stats" class="role-menu-config-stats"></div>
+                    <div class="role-menu-config-summary-actions">
+                        <button type="button" class="btn-secondary btn-small" id="role-menu-config-restore-btn" onclick="restoreRoleMenuConfigDefaults()" data-i18n="rbac.menuConfig.restoreDefault">恢复默认</button>
+                        <button type="button" class="btn-secondary btn-small" onclick="selectAllRoleMenuSidebar(true)" data-i18n="rbac.menuConfig.selectAllSidebar">全选侧栏</button>
+                        <button type="button" class="btn-secondary btn-small" onclick="selectAllRoleMenuSidebar(false)" data-i18n="rbac.menuConfig.clearSidebar">清空侧栏</button>
+                    </div>
+                </div>
+                <div class="role-menu-config-toolbar">
+                    <input type="search" id="role-menu-config-search" class="form-input" autocomplete="off" data-i18n="rbac.menuConfig.searchPlaceholder" data-i18n-attr="placeholder" placeholder="搜索菜单…" oninput="filterRoleMenuConfig(this.value)">
+                    <button type="button" class="btn-secondary btn-small" onclick="expandAllRoleMenuGroups(true)" data-i18n="rbac.menuConfig.expandAll">展开全部</button>
+                    <button type="button" class="btn-secondary btn-small" onclick="expandAllRoleMenuGroups(false)" data-i18n="rbac.menuConfig.collapseAll">折叠全部</button>
+                </div>
+                <div class="role-menu-config-scroll-area">
+                    <div id="role-menu-config-sidebar-tree" class="role-menu-config-tree rbac-permission-groups"></div>
+                </div>
+            </div>
+            <div class="modal-footer role-menu-config-footer">
+                <div class="role-menu-config-footer-actions">
+                    <button class="btn-secondary" type="button" onclick="closeRoleMenuConfigModal()" data-i18n="common.cancel">取消</button>
+                    <button class="btn-primary" data-require-permission="rbac:write" id="role-menu-config-save-btn" type="button" onclick="saveRoleMenuConfig()" data-i18n="rbac.menuConfig.saveApply">保存并生效</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 项目管理弹窗（挂 body 下，避免被 .page overflow 裁剪） -->
     <div id="project-modal" class="modal-overlay projects-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="project-modal-title" onclick="if(event.target===this)closeProjectModal()">
         <div class="projects-modal-dialog" onclick="event.stopPropagation()">
@@ -6692,6 +6731,8 @@
     <script src="/static/js/i18n.js"></script>
     <script src="/static/js/theme.js"></script>
     <script src="/static/js/builtin-tools.js"></script>
+    <script src="/static/js/sidebar-menu-registry.js"></script>
+    <script src="/static/js/sidebar-menu-visibility.js"></script>
     <script src="/static/js/auth.js?v=20260813-1"></script>
     <script src="/static/js/modal.js"></script>
     <script src="/static/js/notifications.js"></script>
@@ -6724,6 +6765,7 @@
     <script src="/static/js/workflows.js"></script>
     <script src="/static/js/roles.js"></script>
     <script src="/static/js/rbac.js"></script>
+    <script src="/static/js/role-menu-config.js"></script>
     <script src="/static/js/c2.js"></script>
     <script src="/static/js/rbac-guards.js?v=20260717-1"></script>
 </body>

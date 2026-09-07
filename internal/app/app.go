@@ -941,6 +941,8 @@ func setupRoutes(
 		protected.POST("/rbac/roles", rbacHandler.CreateRole)
 		protected.PUT("/rbac/roles/:id", rbacHandler.UpdateRole)
 		protected.DELETE("/rbac/roles/:id", rbacHandler.DeleteRole)
+		protected.GET("/rbac/roles/:id/ui-grants/menu", rbacHandler.GetRoleMenuUIGrants)
+		protected.PUT("/rbac/roles/:id/ui-grants/menu", rbacHandler.PutRoleMenuUIGrants)
 		protected.GET("/rbac/resource-assignments", rbacHandler.ListResourceAssignments)
 		protected.GET("/rbac/resources", rbacHandler.ListAssignableResources)
 		protected.POST("/rbac/resource-assignments", rbacHandler.AssignResource)

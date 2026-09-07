@@ -75,12 +75,20 @@ type RBACResourceOption struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// RBACUIGrants is the merged UI visibility profile exposed to clients.
+type RBACUIGrants struct {
+	SidebarPage     []string `json:"sidebar_page"`
+	SettingsSection []string `json:"settings_section"`
+	Button          []string `json:"button"`
+}
+
 // RBACAccess is the resolved authorization profile for one user.
 type RBACAccess struct {
 	User             RBACUser          `json:"user"`
 	Roles            []RBACRole        `json:"roles"`
 	Permissions      map[string]bool   `json:"permissions"`
 	PermissionScopes map[string]string `json:"permissionScopes,omitempty"`
+	UiGrants         RBACUIGrants      `json:"uiGrants"`
 	// Scope is retained as the broadest effective scope for UI compatibility.
 	// Authorization decisions must use PermissionScopes so a global read role
 	// cannot widen an unrelated write permission from another role.
@@ -180,6 +188,19 @@ func (db *DB) initRBACTables() error {
 		`CREATE INDEX IF NOT EXISTS idx_chat_upload_artifacts_conversation ON chat_upload_artifacts(conversation_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_upload_artifacts_owner ON chat_upload_artifacts(owner_user_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_c2_payload_artifacts_listener ON c2_payload_artifacts(listener_id);`,
+		`CREATE TABLE IF NOT EXISTS rbac_role_ui_grants (
+			id TEXT PRIMARY KEY,
+			role_id TEXT NOT NULL,
+			resource_type TEXT NOT NULL,
+			resource_key TEXT NOT NULL,
+			effect TEXT NOT NULL DEFAULT 'allow',
+			created_at DATETIME NOT NULL,
+			updated_at DATETIME NOT NULL,
+			FOREIGN KEY (role_id) REFERENCES rbac_roles(id) ON DELETE CASCADE,
+			UNIQUE (role_id, resource_type, resource_key)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_rbac_role_ui_grants_role ON rbac_role_ui_grants(role_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_rbac_role_ui_grants_type_key ON rbac_role_ui_grants(resource_type, resource_key);`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {

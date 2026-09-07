@@ -52,6 +52,11 @@ func (h *RBACHandler) Me(c *gin.Context) {
 		"permissions":       permissionKeys(session.Permissions),
 		"scope":             resolvedScope,
 		"permission_scopes": permissionScopes,
+		"uiGrants": gin.H{
+			"sidebar_page":     session.UiGrants.SidebarPage,
+			"settings_section": session.UiGrants.SettingsSection,
+			"button":           session.UiGrants.Button,
+		},
 	})
 }
 
@@ -426,4 +431,64 @@ func (h *RBACHandler) DeleteResourceAssignment(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+type roleMenuUIGrantsRequest struct {
+	SidebarPage     []string `json:"sidebar_page"`
+	SettingsSection []string `json:"settings_section"`
+}
+
+func (h *RBACHandler) GetRoleMenuUIGrants(c *gin.Context) {
+	roleID := strings.TrimSpace(c.Param("id"))
+	if _, err := h.db.GetRBACRoleByID(roleID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "角色不存在"})
+		return
+	}
+	sidebar, settings, err := security.EffectiveMenuGrantsForRole(h.db, roleID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	hasExplicitSidebar, _ := h.db.RoleHasExplicitUIGrants(roleID, security.UiGrantsTypeSidebarPage)
+	hasExplicitSettings, _ := h.db.RoleHasExplicitUIGrants(roleID, security.UiGrantsTypeSettingsSection)
+	c.JSON(http.StatusOK, gin.H{
+		"role_id":          roleID,
+		"sidebar_page":     sidebar,
+		"settings_section": settings,
+		"has_explicit_grants": gin.H{
+			"sidebar_page":     hasExplicitSidebar,
+			"settings_section": hasExplicitSettings,
+		},
+	})
+}
+
+func (h *RBACHandler) PutRoleMenuUIGrants(c *gin.Context) {
+	roleID := strings.TrimSpace(c.Param("id"))
+	if _, err := h.db.GetRBACRoleByID(roleID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "角色不存在"})
+		return
+	}
+	var req roleMenuUIGrantsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	settings := security.NormalizeSettingsSectionKeys(req.SettingsSection)
+	sidebar := security.EnsureSidebarParentKeys(req.SidebarPage)
+	sidebar = security.EnsureSettingsSidebarAccess(sidebar, settings)
+	if err := h.db.ReplaceRBACRoleMenuUIGrants(roleID, sidebar, settings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if h.audit != nil {
+		h.audit.RecordOK(c, "rbac", "update_role_menu_grants", "更新角色菜单可见性", "role", roleID, gin.H{
+			"sidebar_page_count":     len(sidebar),
+			"settings_section_count": len(settings),
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"role_id":          roleID,
+		"sidebar_page":     sidebar,
+		"settings_section": settings,
+	})
 }
