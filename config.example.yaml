@@ -360,7 +360,7 @@ security:
 # MCP 协议配置
 # MCP (Model Context Protocol) 用于工具注册和调用
 mcp:
-  enabled: false # 是否启用 MCP 服务器（http模式）
+  enabled: true # 是否启用 MCP 服务器（http模式）
   host: 127.0.0.1 # MCP 服务器监听地址；需要远程访问时再显式修改并配置网络层访问控制
   port: 8081 # MCP 服务器端口
   auth_header: "X-MCP-Token" # 可选的全局服务凭证 Header；普通调用请使用用户 Authorization: Bearer Token
